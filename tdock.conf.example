@@ -1,0 +1,21 @@
+{
+  "DOCK":{
+    "VENDORID":6127,
+    "PRODUCTID":4106
+  },
+
+  "LAPTOP":{
+    "OUTPUT":"LVDS1",
+    "UNDOCKED_MODE":"1600x900_60.00",
+    "DOCKED_MODE":"1360x768_60.00",
+    "BUMBLEBEE":true,
+    "OFF_ONDOCK":false
+  },
+
+  "MONITOR":{
+    "OUTPUT":["VIRTUAL4"],
+    "DOCKED_MODE":["VIRTUAL4.640-1360x768"],
+    "DISPLAY_POSITION":["MIRROR"],
+    "POWEROFF_ONSIGKILL":[false]
+  }
+}
