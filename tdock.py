@@ -8,7 +8,7 @@ import daemon
 import syslog
 import usb.core
 import pyudev as udev
-from os import getpid, getuid
+from os import getpid, getuid , kill
 from os.path import expanduser
 
 
@@ -55,12 +55,14 @@ class ThinkDaemon(object):
         if self.hwobserver is not None:
             self.hwobserver.send_stop()
         if self.vdriver is not None:
-            self.vdriver.send_signal(signum)
+            subprocess.Popen(["killall", "intel-virtual-output"]).wait(10)
         time.sleep(60.0 / 1000.0)
         sys.exit(0)
 
     def connect(self):
         subprocess.Popen(["xrandr", "--output", self.loutput, "--mode", self.ldock_mode])
+        self.vdriver = subprocess.Popen(["intel-virtual-output"])
+        self.vdriver.wait(timeout=15)
         for entry in self.eoutput:
             index = self.eoutput.index(entry)
             # TODO: Replace these subrocess calls with Xlib. Scraping output from xrandr like this is somewhat absurd.
@@ -73,6 +75,9 @@ class ThinkDaemon(object):
                 self.output_state[entry] = True
             else:
                 self.output_state[entry] = False
+            state.kill()
+            display.kill()
+            xrandr.kill()
 
         for entry, state in self.output_state.items():
             if state is False:
@@ -80,14 +85,21 @@ class ThinkDaemon(object):
                 position = self.eposition[index].lower()
                 mode = self.emode[index]
                 if position == "mirror":
-                    screen = subprocess.Popen(["xrandr", "--output", entry, "--mode", mode], stdout=subprocess.PIPE)
-                    time.sleep(5)
+                    screen = subprocess.Popen(["xrandr", "--output", entry, "--mode", mode])
+                    screen.wait(timeout=15)
                     self.output_state[entry] = True
                     # TODO: Add handlers for right-of and left-of options.
 
     def disconnect(self):
         for output in self.eoutput:
-            subprocess.Popen(["xrandr", "--output", output, "--off"])
+            subprocess.Popen(["xrandr", "--output", output, "--off"]).wait(15)
+
+        # TODO: It looks like intel-virtual output forks itself. We call killall here to kill the process by name.
+        # We should however find a way to get the pid of the child so we can kill it directly.
+        # self.vdriver.terminate()
+        subprocess.Popen(["killall", "intel-virtual-output"])
+        self.vdriver = None
+        subprocess.Popen(["xrandr", "--output", self.loutput, "--mode", self.lundock_mode]).wait(15)
 
 
 def initdaemon(tdock, config):
@@ -107,10 +119,7 @@ def initdaemon(tdock, config):
         tdock.dock_state = True
         if tdock.dock_state is True:
             if tdock.laptop["BUMBLEBEE"] is True:
-                # BUGFIX: Running intel-virtual-output as a subprocess does not seem to work with xrandr.
-                tdock.vdriver = subprocess.Popen(["intel-virtual-output", "-f"])
-                syslog.syslog("tdockd: display driver intel-virtual-output running on pid[%s]" % tdock.vdriver.pid)
-            tdock.connect()
+                tdock.connect()
             if tdock.off_ondock is True:
                 subprocess.Popen(["xrandr", "--output", tdock.loutput, "--off"])
                 tdock.laptop_state = False
